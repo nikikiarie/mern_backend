@@ -1,6 +1,9 @@
 const bcrypt = require("bcrypt");
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
+const Token = require("../models/Token");
+const sendMail = require("../utils/sendMail");
+const crypto = require("crypto");
 
 const login = async (req, res) => {
   try {
@@ -20,22 +23,32 @@ const login = async (req, res) => {
 };
 
 const register = async (req, res) => {
-  
-  console.log(req.body)
   try {
     const salt = await bcrypt.genSalt(10);
-  const hashedPassword =await  bcrypt.hash(req.body.password, salt);
-  console.log(req.body.email);
+    const hashedPassword = await bcrypt.hash(req.body.password, salt);
+    
     const newUser = new User({
       ...req.body,
-      friends:[],
+      friends: [],
       password: hashedPassword,
       picturePath: req.body.picturePath,
       viewedProfile: Math.floor(Math.random() * 10000),
       impressions: Math.floor(Math.random() * 10000),
     });
     const savedUser = await newUser.save();
-    res.status(201).json(savedUser);
+console.log(savedUser);
+    const token = new Token({
+      userId: savedUser._id,
+      token: crypto.randomBytes(32).toString("hex"),
+    });
+
+    const savedToken = await token.save();
+
+    const url = `${process.env.BASE_URL}/users/${savedUser._id}/verify/${savedToken.token}`;
+
+    await sendMail(savedUser.email,"Verify Email",url)
+    
+    res.status(200).json({message: "An email sent to account ,Please Verify"});
   } catch (err) {
     res.status(500).json({ error: err.msg });
   }
